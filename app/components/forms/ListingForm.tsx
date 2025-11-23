@@ -65,35 +65,84 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    setImages(files)
+    console.log('handleImageChange called with files:', files.length)
+    console.log('File details:', files.map(f => ({ name: f.name, size: f.size, type: f.type })))
     
-    const previews = files.map(file => URL.createObjectURL(file))
+    // Limit to 5 images
+    const limitedFiles = files.slice(0, 5)
+    
+    setImages(limitedFiles)
+    
+    const previews = limitedFiles.map(file => URL.createObjectURL(file))
     setImagePreviews(previews)
+    
+    console.log('Images state updated, count:', limitedFiles.length)
   }
 
   const uploadImages = async (userId: string): Promise<string[]> => {
     const uploadedUrls: string[] = []
     
-    for (const image of images) {
-      const fileExt = image.name.split('.').pop()
-      const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-      
-      const { data, error } = await supabase.storage
-        .from('listing-images')
-        .upload(fileName, image)
+    console.log('uploadImages called with userId:', userId)
+    console.log('Current images state:', images)
+    console.log('Images array length:', images?.length || 0)
+    
+    if (!images || images.length === 0) {
+      console.warn('No images to upload - images array is empty')
+      return uploadedUrls
+    }
+    
+    console.log(`Starting upload of ${images.length} image(s)`)
+    
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i]
+      try {
+        console.log(`Uploading image ${i + 1}/${images.length}:`, image.name, 'Size:', image.size, 'Type:', image.type)
+        
+        const fileExt = image.name.split('.').pop()
+        const uniqueId = Date.now() + '_' + Math.random().toString(36).substring(7)
+        const fileName = `${userId}/${uniqueId}.${fileExt}`
+        
+        console.log('Uploading to path:', fileName)
+        
+        const { data, error } = await supabase.storage
+          .from('listing-images')
+          .upload(fileName, image, {
+            cacheControl: '3600',
+            upsert: false
+          })
 
-      if (error) {
-        console.error('Upload error:', error)
-        continue
+        if (error) {
+          console.error('Upload error for image:', image.name, error)
+          console.error('Error details:', JSON.stringify(error, null, 2))
+          setError(`Failed to upload ${image.name}: ${error.message}`)
+          continue
+        }
+
+        if (data) {
+          console.log('Upload successful, data:', data)
+          const { data: { publicUrl } } = supabase.storage
+            .from('listing-images')
+            .getPublicUrl(data.path)
+
+          console.log('Generated public URL:', publicUrl)
+
+          if (publicUrl) {
+            uploadedUrls.push(publicUrl)
+            console.log(`✓ Image ${i + 1} uploaded successfully:`, publicUrl)
+          } else {
+            console.error('Public URL is empty for uploaded file')
+          }
+        } else {
+          console.error('Upload returned no data')
+        }
+      } catch (err: any) {
+        console.error('Exception uploading image:', image.name, err)
+        console.error('Error stack:', err?.stack)
+        setError(`Failed to upload ${image.name}: ${err?.message || err}`)
       }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('listing-images')
-        .getPublicUrl(data.path)
-
-      uploadedUrls.push(publicUrl)
     }
 
+    console.log(`Upload complete. Total URLs: ${uploadedUrls.length}`)
     return uploadedUrls
   }
 
@@ -108,8 +157,16 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
     setLoading(true)
 
     try {
+      // Debug: Check images state before upload
+      console.log('Images state before upload:', images)
+      console.log('Images length:', images.length)
+      console.log('Image previews:', imagePreviews)
+      
       // Upload images
       const imageUrls = await uploadImages(user.id)
+      
+      console.log('Uploaded image URLs:', imageUrls)
+      console.log('Number of URLs uploaded:', imageUrls.length)
 
       const listingData = {
         user_id: user.id,
@@ -122,28 +179,41 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
         location: formData.location,
         city: formData.city,
         description: formData.description,
-        images: imageUrls,
+        images: imageUrls.length > 0 ? imageUrls : [], // Ensure it's always an array
         contact_preferences: formData.contact_preferences,
         listing_type: formData.listing_type,
         status: 'active',
       }
+      
+      console.log('Listing data to save:', { ...listingData, images: imageUrls })
 
       if (listingId) {
         // Update existing listing
-        const { error: updateError } = await supabase
+        const { data: updateData, error: updateError } = await supabase
           .from('listings')
           .update(listingData)
           .eq('id', listingId)
           .eq('user_id', user.id)
+          .select()
 
-        if (updateError) throw updateError
+        if (updateError) {
+          console.error('Update error:', updateError)
+          throw updateError
+        }
+        console.log('Listing updated:', updateData)
       } else {
         // Create new listing
-        const { error: insertError } = await supabase
+        const { data: insertData, error: insertError } = await supabase
           .from('listings')
           .insert(listingData)
+          .select()
 
-        if (insertError) throw insertError
+        if (insertError) {
+          console.error('Insert error:', insertError)
+          throw insertError
+        }
+        console.log('Listing created:', insertData)
+        console.log('Images saved:', insertData?.[0]?.images)
       }
 
       router.push('/dashboard/listings')
@@ -171,7 +241,8 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
             value={formData.listing_type}
             onChange={handleInputChange}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+            style={{ backgroundColor: '#ffffff', color: '#111827' }}
           >
             {LISTING_TYPES.map((type) => (
               <option key={type} value={type}>
@@ -199,7 +270,8 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
               value={formData.category}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+              style={{ backgroundColor: '#ffffff', color: '#111827' }}
             >
               <option value="">Select Category</option>
               {MATERIAL_CATEGORIES.map((cat) => (
@@ -219,7 +291,8 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
               value={formData.condition}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+              style={{ backgroundColor: '#ffffff', color: '#111827' }}
             >
               <option value="">Select Condition</option>
               {MATERIAL_CONDITIONS.map((cond) => (
@@ -276,7 +349,8 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
               value={formData.city}
               onChange={handleInputChange}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+              style={{ backgroundColor: '#ffffff', color: '#111827' }}
             >
               <option value="">Select City</option>
               {PAKISTAN_CITIES.map((city) => (
@@ -307,7 +381,8 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
             onChange={handleInputChange}
             required
             rows={4}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 placeholder-gray-400"
+            style={{ backgroundColor: '#ffffff', color: '#111827' }}
             placeholder="Describe your material in detail..."
           />
         </div>
@@ -321,17 +396,36 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
             accept="image/*"
             multiple
             onChange={handleImageChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 file:bg-primary-600 file:text-white hover:file:bg-primary-700 file:border-0 file:px-4 file:py-2 file:rounded file:cursor-pointer"
+            style={{ backgroundColor: '#ffffff', color: '#111827' }}
           />
+          {images.length > 0 && (
+            <p className="text-sm text-green-600 mt-2">
+              ✓ {images.length} image{images.length > 1 ? 's' : ''} selected
+            </p>
+          )}
           {imagePreviews.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mt-4">
               {imagePreviews.map((preview, idx) => (
-                <img
-                  key={idx}
-                  src={preview}
-                  alt={`Preview ${idx + 1}`}
-                  className="w-full h-32 object-cover rounded"
-                />
+                <div key={idx} className="relative">
+                  <img
+                    src={preview}
+                    alt={`Preview ${idx + 1}`}
+                    className="w-full h-32 object-cover rounded border border-gray-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newImages = images.filter((_, i) => i !== idx)
+                      const newPreviews = imagePreviews.filter((_, i) => i !== idx)
+                      setImages(newImages)
+                      setImagePreviews(newPreviews)
+                    }}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                  >
+                    ×
+                  </button>
+                </div>
               ))}
             </div>
           )}

@@ -129,15 +129,19 @@ export default function ListingDetailPage() {
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Images */}
-          {listing.images && listing.images.length > 0 && (
+          {listing.images && Array.isArray(listing.images) && listing.images.length > 0 && listing.images.filter(img => img).length > 0 && (
             <Card>
               <div className="grid grid-cols-2 gap-4">
-                {listing.images.map((img, idx) => (
+                {listing.images.filter(img => img).map((img, idx) => (
                   <div key={idx} className="relative h-64 bg-gray-200 rounded overflow-hidden">
                     <img
                       src={img}
                       alt={`${listing.material_name} ${idx + 1}`}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.error('Image failed to load:', img)
+                        e.currentTarget.style.display = 'none'
+                      }}
                     />
                   </div>
                 ))}
@@ -235,7 +239,8 @@ export default function ListingDetailPage() {
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Type your message..."
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 placeholder-gray-400"
+                    style={{ backgroundColor: '#ffffff', color: '#111827' }}
                   />
                   <Button
                     onClick={handleSendMessage}

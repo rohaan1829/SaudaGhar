@@ -54,7 +54,8 @@ export function WasteCalculator() {
           <select
             value={materialType}
             onChange={(e) => setMaterialType(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+            style={{ backgroundColor: '#ffffff', color: '#111827' }}
           >
             <option value="">Select Material</option>
             <option value="Plastic">Plastic</option>

@@ -32,9 +32,14 @@ export function Input({
       )}
       <motion.input
         whileFocus={{ scale: 1.01 }}
-        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all duration-200 ${
+        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all duration-200 bg-white text-gray-900 placeholder-gray-400 ${
           error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300'
         } ${className}`}
+        style={{ 
+          backgroundColor: '#ffffff !important', 
+          color: '#111827 !important',
+          WebkitTextFillColor: '#111827 !important'
+        }}
         {...(props as HTMLMotionProps<'input'>)}
       />
       {error && (

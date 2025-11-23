@@ -80,6 +80,8 @@ export function useLanguage() {
   const changeLanguage = (lang: Language) => {
     setLanguage(lang)
     localStorage.setItem('language', lang)
+    // Reload the page to apply language changes across all components
+    window.location.reload()
   }
 
   return { language, t, changeLanguage }

@@ -124,7 +124,8 @@ export default function ProfilePage() {
               value={formData.business_type}
               onChange={(e) => setFormData({ ...formData, business_type: e.target.value })}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+              style={{ backgroundColor: '#ffffff', color: '#111827' }}
             >
               {BUSINESS_TYPES.map((type) => (
                 <option key={type} value={type}>

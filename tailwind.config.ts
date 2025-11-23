@@ -1,6 +1,8 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
+  // darkMode removed - defaults to 'media' which respects system preference
+  // To disable dark mode completely, you can add darkMode: 'class' and control it manually
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',

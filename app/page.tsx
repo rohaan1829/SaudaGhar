@@ -31,8 +31,11 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
 
   // Memoize fetch functions to prevent recreation on every render
-  const fetchListings = useCallback(async () => {
-    if (!location && !searchQuery) {
+  const fetchListings = useCallback(async (searchLocation?: string, searchText?: string) => {
+    const loc = searchLocation ?? location
+    const queryText = searchText ?? searchQuery
+
+    if (!loc && !queryText) {
       // Fetch recent listings if no filters
       setLoading(true)
       const { data, error } = await supabase
@@ -50,23 +53,65 @@ export default function HomePage() {
     }
 
     setLoading(true)
+    
+    // Start with base query
     let query = supabase
       .from('listings')
       .select('*')
       .eq('status', 'active')
 
-    if (location) {
-      query = query.or(`city.ilike.%${location}%,location.ilike.%${location}%`)
-    }
+    let data, error
 
-    if (searchQuery) {
-      query = query.or(`material_name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`)
+    // Handle different filter combinations
+    if (loc && queryText) {
+      // Both filters: First filter by location, then search text in memory
+      query = query.or(`city.ilike.%${loc}%,location.ilike.%${loc}%`)
+      const result = await query.order('created_at', { ascending: false }).limit(200)
+      
+      if (result.data) {
+        const searchLower = queryText.toLowerCase()
+        data = result.data.filter(listing => {
+          return (
+            listing.material_name?.toLowerCase().includes(searchLower) ||
+            listing.description?.toLowerCase().includes(searchLower) ||
+            listing.category?.toLowerCase().includes(searchLower)
+          )
+        }).sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        ).slice(0, 50)
+      }
+      error = result.error
+    } else if (loc) {
+      // Only location filter
+      query = query.or(`city.ilike.%${loc}%,location.ilike.%${loc}%`)
+      const result = await query.order('created_at', { ascending: false }).limit(50)
+      data = result.data
+      error = result.error
+    } else if (queryText) {
+      // Only search text filter
+      query = query.or(`material_name.ilike.%${queryText}%,description.ilike.%${queryText}%,category.ilike.%${queryText}%`)
+      const result = await query.order('created_at', { ascending: false }).limit(50)
+      data = result.data
+      error = result.error
+    } else {
+      // No filters - should not reach here but just in case
+      const result = await query.order('created_at', { ascending: false }).limit(50)
+      data = result.data
+      error = result.error
     }
-
-    const { data, error } = await query.order('created_at', { ascending: false }).limit(20)
 
     if (!error && data) {
       setListings(data)
+      // Scroll to search results section
+      setTimeout(() => {
+        const resultsSection = document.getElementById('search-results')
+        if (resultsSection) {
+          resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    } else if (error) {
+      console.error('Search error:', error)
+      setListings([])
     }
     setLoading(false)
   }, [location, searchQuery])
@@ -121,9 +166,9 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    // Parallelize all fetches for faster loading
+    // Parallelize all fetches for faster loading (initial load only)
     Promise.all([
-      fetchListings(),
+      fetchListings('', ''), // Load recent listings on initial mount
       fetchFeaturedListings(),
       fetchCategoryCounts(),
       fetchStats()
@@ -131,9 +176,12 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Empty deps - only run on mount
 
-  const handleSearch = useCallback(() => {
-    fetchListings()
-  }, [fetchListings])
+  const handleSearch = useCallback((e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault()
+    }
+    fetchListings(location, searchQuery)
+  }, [fetchListings, location, searchQuery])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -207,7 +255,7 @@ export default function HomePage() {
             className="max-w-4xl mx-auto"
           >
             <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
-              <div className="p-6 md:p-8">
+              <form onSubmit={handleSearch} className="p-6 md:p-8">
                 <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">
                   {language === 'en' ? 'Search Listings' : 'فہرستیں تلاش کریں'}
                 </h2>
@@ -224,16 +272,36 @@ export default function HomePage() {
                       placeholder={language === 'en' ? 'Search by material, category, or description' : 'مواد، قسم، یا تفصیل سے تلاش کریں'}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleSearch(e)
+                        }
+                      }}
                     />
                   </div>
-                  <div className="flex justify-center">
-                    <Button onClick={handleSearch} isLoading={loading} size="lg" className="min-w-[200px]">
+                  <div className="flex justify-center gap-3">
+                    <Button type="submit" isLoading={loading} size="lg" className="min-w-[200px]">
                       {language === 'en' ? 'Search' : 'تلاش کریں'}
                     </Button>
+                    {(location || searchQuery) && (
+                      <Button 
+                        type="button"
+                        variant="outline" 
+                        size="lg"
+                        onClick={() => {
+                          setLocation('')
+                          setSearchQuery('')
+                          fetchListings('', '')
+                        }}
+                        className="min-w-[150px]"
+                      >
+                        {language === 'en' ? 'Clear' : 'صاف کریں'}
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </div>
+              </form>
             </Card>
           </motion.div>
         </div>
@@ -351,8 +419,8 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Recent Listings Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Recent Listings / Search Results Section */}
+      <section id="search-results" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900">
             {location || searchQuery 

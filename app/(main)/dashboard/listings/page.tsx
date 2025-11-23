@@ -32,7 +32,13 @@ export default function MyListingsPage() {
       .order('created_at', { ascending: false })
 
     if (!error && data) {
+      // Debug: Log images for each listing
+      data.forEach(listing => {
+        console.log(`Listing ${listing.id} images:`, listing.images, 'Type:', typeof listing.images, 'Is Array:', Array.isArray(listing.images))
+      })
       setListings(data)
+    } else if (error) {
+      console.error('Error fetching listings:', error)
     }
     setLoading(false)
   }

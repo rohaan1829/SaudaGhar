@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Card } from '@/app/components/ui/Card'
 import type { Listing } from '@/app/types'
 import { formatDistanceToNow } from 'date-fns'
@@ -48,6 +49,23 @@ export const ListingCard = memo(function ListingCard({ listing }: ListingCardPro
   }, [listing.is_exchange_only, listing.price])
   const timeAgo = useMemo(() => formatDistanceToNow(new Date(listing.created_at), { addSuffix: true }), [listing.created_at])
   const CategoryIcon = useMemo(() => getCategoryIcon(listing.category), [listing.category])
+  
+  // Normalize images array - handle null, undefined, or string
+  const imagesArray = useMemo(() => {
+    if (!listing.images) return []
+    if (Array.isArray(listing.images)) return listing.images.filter(img => img && typeof img === 'string' && img.trim() !== '')
+    // Handle case where images might be a string (legacy data or JSON string)
+    const imagesValue = listing.images as unknown
+    if (typeof imagesValue === 'string') {
+      try {
+        const parsed = JSON.parse(imagesValue)
+        return Array.isArray(parsed) ? parsed.filter(img => img && typeof img === 'string' && img.trim() !== '') : []
+      } catch {
+        return imagesValue.trim() !== '' ? [imagesValue] : []
+      }
+    }
+    return []
+  }, [listing.images])
 
   return (
     <motion.div
@@ -60,17 +78,24 @@ export const ListingCard = memo(function ListingCard({ listing }: ListingCardPro
       <Link href={`/listings/${listing.id}`}>
         <Card className="transition-all duration-300 cursor-pointer h-full flex flex-col group border-2 hover:border-primary-300 hover:shadow-xl">
         {/* Image Section */}
-        {listing.images && listing.images.length > 0 ? (
+        {imagesArray.length > 0 ? (
           <div className="w-full h-48 bg-gray-200 rounded-t-lg overflow-hidden relative">
             <img
-              src={listing.images[0]}
+              src={imagesArray[0]}
               alt={listing.material_name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
+              onError={(e) => {
+                console.error('Image failed to load:', imagesArray[0], 'for listing:', listing.id)
+                e.currentTarget.style.display = 'none'
+                if (e.currentTarget.parentElement) {
+                  e.currentTarget.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400">Image not available</div>'
+                }
+              }}
             />
-            {listing.images.length > 1 && (
+            {imagesArray.length > 1 && (
               <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                +{listing.images.length - 1}
+                +{imagesArray.length - 1}
               </div>
             )}
             <div className="absolute top-2 left-2">
