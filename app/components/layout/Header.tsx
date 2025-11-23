@@ -7,6 +7,7 @@ import { useLanguage } from '@/app/hooks/useLanguage'
 import { useAuth } from '@/app/hooks/useAuth'
 import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 
 // Use singleton client
 const supabase = createClient()
@@ -23,20 +24,35 @@ export function Header() {
   }
 
   return (
-    <header className="bg-white shadow-sm">
+    <motion.header
+      initial={{ y: -100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+      className="bg-white shadow-sm sticky top-0 z-40"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center">
         <div className="flex justify-between items-center w-full">
-          <Link href="/" className="flex items-center h-full">
-            <Image 
-              src="/logo.png" 
-              alt="SaudaGhar Logo" 
-              width={255} 
-              height={82}
-              className="h-[66px] w-auto object-contain"
-              priority
-            />
-          </Link>
-          <div className="flex items-center gap-4">
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Link href="/" className="flex items-center h-full">
+              <Image 
+                src="/logo.png" 
+                alt="SaudaGhar Logo" 
+                width={255} 
+                height={82}
+                className="h-[66px] w-auto object-contain"
+                priority
+              />
+            </Link>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex items-center gap-4"
+          >
             <select
               value={language}
               onChange={(e) => changeLanguage(e.target.value as 'en' | 'ur')}
@@ -64,10 +80,10 @@ export function Header() {
                 </Link>
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       </div>
-    </header>
+    </motion.header>
   )
 }
 

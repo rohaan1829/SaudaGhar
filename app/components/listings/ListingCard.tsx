@@ -1,9 +1,12 @@
+'use client'
+
 import Link from 'next/link'
 import { Card } from '@/app/components/ui/Card'
 import type { Listing } from '@/app/types'
 import { formatDistanceToNow } from 'date-fns'
 import { getCategoryIcon } from '@/app/lib/utils/categories'
 import { memo, useMemo } from 'react'
+import { motion } from 'framer-motion'
 
 interface ListingCardProps {
   listing: Listing
@@ -47,8 +50,15 @@ export const ListingCard = memo(function ListingCard({ listing }: ListingCardPro
   const CategoryIcon = useMemo(() => getCategoryIcon(listing.category), [listing.category])
 
   return (
-    <Link href={`/listings/${listing.id}`}>
-      <Card className="hover:shadow-xl transition-all duration-300 cursor-pointer h-full flex flex-col group border-2 hover:border-primary-300">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+      whileHover={{ y: -8, scale: 1.02 }}
+      className="h-full"
+    >
+      <Link href={`/listings/${listing.id}`}>
+        <Card className="transition-all duration-300 cursor-pointer h-full flex flex-col group border-2 hover:border-primary-300 hover:shadow-xl">
         {/* Image Section */}
         {listing.images && listing.images.length > 0 ? (
           <div className="w-full h-48 bg-gray-200 rounded-t-lg overflow-hidden relative">
@@ -132,5 +142,6 @@ export const ListingCard = memo(function ListingCard({ listing }: ListingCardPro
         </div>
       </Card>
     </Link>
+    </motion.div>
   )
 })

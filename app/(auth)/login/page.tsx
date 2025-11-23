@@ -6,7 +6,9 @@ import Link from 'next/link'
 import { Button } from '@/app/components/ui/Button'
 import { Input } from '@/app/components/ui/Input'
 import { Card } from '@/app/components/ui/Card'
+import { Alert } from '@/app/components/ui/Alert'
 import { createClient } from '@/app/lib/supabase/client'
+import { AnimatePresence } from 'framer-motion'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -60,11 +62,13 @@ export default function LoginPage() {
             required
           />
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
+          <AnimatePresence>
+            {error && (
+              <Alert variant="error">
+                {error}
+              </Alert>
+            )}
+          </AnimatePresence>
 
           <Button type="submit" variant="primary" className="w-full" isLoading={loading}>
             Login

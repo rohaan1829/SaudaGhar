@@ -33,7 +33,11 @@ export default function MainLayout({
   }
 
   if (loading) {
-    return <PageSkeleton />
+    return (
+      <div className="min-h-screen">
+        <PageSkeleton />
+      </div>
+    )
   }
 
   if (!user) {

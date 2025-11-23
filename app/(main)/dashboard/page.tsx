@@ -9,6 +9,7 @@ import { useAuth } from '@/app/hooks/useAuth'
 import type { Listing, Profile, Notification } from '@/app/types'
 import { SeasonalAlerts } from '@/app/components/dashboard/SeasonalAlerts'
 import { DashboardSkeleton } from '@/app/components/dashboard/DashboardSkeleton'
+import { motion } from 'framer-motion'
 
 // Use singleton client
 const supabase = createClient()
@@ -77,72 +78,118 @@ export default function DashboardPage() {
   }
 
   return (
-    <div>
-      <div className="mb-8">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="mb-8"
+      >
         <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
         <p className="text-gray-600">
           Welcome back, {profile?.full_name || user?.email}!
         </p>
-      </div>
+      </motion.div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Active Listings</h3>
-          <p className="text-3xl font-bold text-primary-600">{stats.listings}</p>
-        </Card>
-        <Card>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Unread Messages</h3>
-          <p className="text-3xl font-bold text-primary-600">{stats.messages}</p>
-        </Card>
-        <Card>
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Notifications</h3>
-          <p className="text-3xl font-bold text-primary-600">{stats.notifications}</p>
-        </Card>
+        {[
+          { label: 'Active Listings', value: stats.listings },
+          { label: 'Unread Messages', value: stats.messages },
+          { label: 'Notifications', value: stats.notifications },
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
+            whileHover={{ scale: 1.05, y: -4 }}
+          >
+            <Card>
+              <h3 className="text-sm font-medium text-gray-600 mb-1">{stat.label}</h3>
+              <motion.p
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.3 + index * 0.1, type: 'spring' }}
+                className="text-3xl font-bold text-primary-600"
+              >
+                {stat.value}
+              </motion.p>
+            </Card>
+          </motion.div>
+        ))}
       </div>
 
       {/* Quick Actions */}
-      <div className="mb-8">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        className="mb-8"
+      >
         <Link href="/listings/create">
           <Button variant="primary" size="lg">
             + Create New Listing
           </Button>
         </Link>
-      </div>
+      </motion.div>
 
       {/* Recent Listings */}
-      <Card>
-        <h2 className="text-xl font-bold mb-4">Recent Listings</h2>
-        {recentListings.length === 0 ? (
-          <p className="text-gray-500">No listings yet. Create your first listing!</p>
-        ) : (
-          <div className="space-y-4">
-            {recentListings.map((listing) => (
-              <Link key={listing.id} href={`/listings/${listing.id}`}>
-                <div className="border-b pb-4 last:border-b-0 hover:bg-gray-50 p-2 rounded">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold">{listing.material_name}</h3>
-                      <p className="text-sm text-gray-600">{listing.category} • {listing.city}</p>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6 }}
+      >
+        <Card>
+          <h2 className="text-xl font-bold mb-4">Recent Listings</h2>
+          {recentListings.length === 0 ? (
+            <p className="text-gray-500">No listings yet. Create your first listing!</p>
+          ) : (
+            <div className="space-y-4">
+              {recentListings.map((listing, index) => (
+                <motion.div
+                  key={listing.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.7 + index * 0.1 }}
+                  whileHover={{ x: 4 }}
+                >
+                  <Link href={`/listings/${listing.id}`}>
+                    <div className="border-b pb-4 last:border-b-0 hover:bg-gray-50 p-2 rounded transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold">{listing.material_name}</h3>
+                          <p className="text-sm text-gray-600">{listing.category} • {listing.city}</p>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          listing.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {listing.status}
+                        </span>
+                      </div>
                     </div>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      listing.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {listing.status}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </Card>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </motion.div>
 
       {/* Seasonal Alerts */}
-      <div className="mt-8">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+        className="mt-8"
+      >
         <SeasonalAlerts />
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 

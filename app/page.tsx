@@ -13,6 +13,8 @@ import { ListingCard } from '@/app/components/listings/ListingCard'
 import type { Listing } from '@/app/types'
 import { MATERIAL_CATEGORIES, getCategoryIcon } from '@/app/lib/utils/categories'
 import { formatDistanceToNow } from 'date-fns'
+import { motion } from 'framer-motion'
+import { Loader } from '@/app/components/ui/Loader'
 
 // Memoize supabase client outside component
 const supabase = createClient()
@@ -139,23 +141,71 @@ export default function HomePage() {
       <Header />
 
       {/* Hero Section with Gradient and Search */}
-      <section className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
-            <h1 className="text-5xl md:text-6xl font-bold mb-6">
+      <section className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 text-white py-16 relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.1, 0.2, 0.1],
+            }}
+            transition={{
+              duration: 8,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+            className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full blur-3xl"
+          />
+          <motion.div
+            animate={{
+              scale: [1.2, 1, 1.2],
+              opacity: [0.15, 0.25, 0.15],
+            }}
+            transition={{
+              duration: 10,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+            className="absolute bottom-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl"
+          />
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            className="text-center mb-10"
+          >
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="text-5xl md:text-6xl font-bold mb-6"
+            >
               {language === 'en' 
                 ? 'Industrial & Agricultural Symbiosis Platform' 
                 : 'صنعتی و زرعی ہم آہنگی پلیٹ فارم'}
-            </h1>
-            <p className="text-xl md:text-2xl text-primary-100 mb-10 max-w-3xl mx-auto">
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="text-xl md:text-2xl text-primary-100 mb-10 max-w-3xl mx-auto"
+            >
               {language === 'en' 
                 ? 'Connect industries and agriculture to reduce waste, promote sustainability, and create a circular economy'
                 : 'صنعتوں اور زراعت کو جوڑیں تاکہ فضلہ کم ہو، پائیداری کو فروغ ملے اور ایک سرکلر معیشت بنائی جائے'}
-            </p>
-          </div>
+            </motion.p>
+          </motion.div>
 
           {/* Search Form in Hero Section */}
-          <div className="max-w-4xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+            className="max-w-4xl mx-auto"
+          >
             <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
               <div className="p-6 md:p-8">
                 <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">
@@ -185,7 +235,7 @@ export default function HomePage() {
                 </div>
               </div>
             </Card>
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -193,18 +243,30 @@ export default function HomePage() {
       <section className="bg-white border-b border-gray-200 py-8 -mt-8 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary-600 mb-2">{stats.totalListings.toLocaleString()}+</div>
-              <div className="text-gray-600">{language === 'en' ? 'Active Listings' : 'فعال فہرستیں'}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary-600 mb-2">{stats.totalViews.toLocaleString()}+</div>
-              <div className="text-gray-600">{language === 'en' ? 'Total Views' : 'کل مناظر'}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary-600 mb-2">{stats.activeUsers.toLocaleString()}+</div>
-              <div className="text-gray-600">{language === 'en' ? 'Active Users' : 'فعال صارفین'}</div>
-            </div>
+            {[
+              { value: stats.totalListings.toLocaleString(), label: language === 'en' ? 'Active Listings' : 'فعال فہرستیں' },
+              { value: stats.totalViews.toLocaleString(), label: language === 'en' ? 'Total Views' : 'کل مناظر' },
+              { value: stats.activeUsers.toLocaleString(), label: language === 'en' ? 'Active Users' : 'فعال صارفین' },
+            ].map((stat, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 0.8 + index * 0.1 }}
+                whileHover={{ scale: 1.05 }}
+                className="text-center"
+              >
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1 + index * 0.1 }}
+                  className="text-4xl font-bold text-primary-600 mb-2"
+                >
+                  {stat.value}+
+                </motion.div>
+                <div className="text-gray-600">{stat.label}</div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
@@ -212,30 +274,47 @@ export default function HomePage() {
       {/* Categories Section */}
       <section className="bg-white py-12 border-t border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center mb-8 text-gray-900">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-3xl font-bold text-center mb-8 text-gray-900"
+          >
             {language === 'en' ? 'Browse by Category' : 'زمرہ کے لحاظ سے براؤز کریں'}
-          </h2>
+          </motion.h2>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {MATERIAL_CATEGORIES.slice(0, 12).map((category) => {
+            {MATERIAL_CATEGORIES.slice(0, 12).map((category, index) => {
               const IconComponent = getCategoryIcon(category)
               return (
-                <Link
+                <motion.div
                   key={category}
-                  href={`/search?category=${encodeURIComponent(category)}`}
-                  className="group"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.05 }}
+                  whileHover={{ y: -5, scale: 1.05 }}
                 >
-                  <Card className="p-4 text-center hover:shadow-lg transition-all hover:border-primary-500 cursor-pointer h-full">
-                    <div className="flex justify-center mb-2">
-                      <IconComponent className="w-8 h-8 text-primary-600 group-hover:text-primary-700 transition-colors" />
-                    </div>
-                    <div className="font-semibold text-sm mb-1">{category}</div>
-                    {categoryCounts[category] && (
-                      <div className="text-xs text-gray-500">
-                        {categoryCounts[category]} {language === 'en' ? 'listings' : 'فہرستیں'}
+                  <Link
+                    href={`/search?category=${encodeURIComponent(category)}`}
+                    className="group block"
+                  >
+                    <Card className="p-4 text-center hover:shadow-lg transition-all hover:border-primary-500 cursor-pointer h-full">
+                      <div className="flex justify-center mb-2">
+                        <motion.div
+                          whileHover={{ rotate: 360 }}
+                          transition={{ duration: 0.6 }}
+                        >
+                          <IconComponent className="w-8 h-8 text-primary-600 group-hover:text-primary-700 transition-colors" />
+                        </motion.div>
                       </div>
-                    )}
-                  </Card>
-                </Link>
+                      <div className="font-semibold text-sm mb-1">{category}</div>
+                      {categoryCounts[category] && (
+                        <div className="text-xs text-gray-500">
+                          {categoryCounts[category]} {language === 'en' ? 'listings' : 'فہرستیں'}
+                        </div>
+                      )}
+                    </Card>
+                  </Link>
+                </motion.div>
               )
             })}
           </div>
@@ -290,10 +369,20 @@ export default function HomePage() {
         </div>
         
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            <p className="mt-4 text-gray-500">{language === 'en' ? 'Loading listings...' : 'فہرستیں لوڈ ہو رہی ہیں...'}</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12"
+          >
+            <Loader size="lg" className="mx-auto mb-4" />
+            <motion.p
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="mt-4 text-gray-500"
+            >
+              {language === 'en' ? 'Loading listings...' : 'فہرستیں لوڈ ہو رہی ہیں...'}
+            </motion.p>
+          </motion.div>
         ) : listings.length === 0 ? (
           <Card className="p-12 text-center">
             <div className="text-6xl mb-4">🔍</div>
@@ -312,11 +401,23 @@ export default function HomePage() {
             </Link>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {listings.map((listing) => (
-              <ListingCard key={listing.id} listing={listing} />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          >
+            {listings.map((listing, index) => (
+              <motion.div
+                key={listing.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.05 }}
+              >
+                <ListingCard listing={listing} />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </section>
 
