@@ -41,7 +41,7 @@ export default function DashboardPage() {
 
     // Fetch stats
     const [listingsRes, messagesRes, notificationsRes] = await Promise.all([
-      supabase.from('listings').select('id', { count: 'exact' }).eq('user_id', user.id),
+      supabase.from('listings').select('id', { count: 'exact' }).eq('user_id', user.id).eq('status', 'active'),
       supabase.from('messages').select('id', { count: 'exact' }).eq('receiver_id', user.id).eq('read', false),
       supabase.from('notifications').select('id', { count: 'exact' }).eq('user_id', user.id).eq('read', false),
     ])
@@ -52,11 +52,12 @@ export default function DashboardPage() {
       notifications: notificationsRes.count || 0,
     })
 
-    // Fetch recent listings
+    // Fetch recent listings (show all statuses in dashboard)
     const { data: listingsData } = await supabase
       .from('listings')
       .select('*')
       .eq('user_id', user.id)
+      .eq('status', 'active') // Only show active listings in recent listings
       .order('created_at', { ascending: false })
       .limit(5)
 

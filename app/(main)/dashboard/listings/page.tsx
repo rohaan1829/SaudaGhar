@@ -2,15 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/app/components/ui/Button'
 import { Card } from '@/app/components/ui/Card'
 import { createClient } from '@/app/lib/supabase/client'
 import { useAuth } from '@/app/hooks/useAuth'
 import { ListingCard } from '@/app/components/listings/ListingCard'
+import ListingForm from '@/app/components/forms/ListingForm'
 import type { Listing } from '@/app/types'
 import { ListingsSkeleton } from '@/app/components/dashboard/ListingsSkeleton'
 
 export default function MyListingsPage() {
+  const searchParams = useSearchParams()
+  const editId = searchParams.get('edit')
   const { user } = useAuth()
   const supabase = createClient()
   const [listings, setListings] = useState<Listing[]>([])
@@ -29,6 +33,7 @@ export default function MyListingsPage() {
       .from('listings')
       .select('*')
       .eq('user_id', user.id)
+      .eq('status', 'active') // Only fetch active listings
       .order('created_at', { ascending: false })
 
     if (!error && data) {
@@ -44,21 +49,55 @@ export default function MyListingsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this listing?')) return
+    if (!user) return
+    
+    if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
+      return
+    }
 
-    const { error } = await supabase
-      .from('listings')
-      .update({ status: 'inactive' })
-      .eq('id', id)
-      .eq('user_id', user?.id)
+    try {
+      // Optimistically remove from UI
+      setListings(prevListings => prevListings.filter(listing => listing.id !== id))
 
-    if (!error) {
+      const { error } = await supabase
+        .from('listings')
+        .update({ status: 'inactive' })
+        .eq('id', id)
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('Error deleting listing:', error)
+        // Revert optimistic update on error
+        fetchListings()
+        alert('Failed to delete listing: ' + error.message)
+      } else {
+        console.log('Listing deleted successfully')
+        // Optionally show a success message
+      }
+    } catch (err: any) {
+      console.error('Exception deleting listing:', err)
+      // Revert optimistic update on error
       fetchListings()
+      alert('Failed to delete listing: ' + err.message)
     }
   }
 
   if (loading) {
     return <ListingsSkeleton />
+  }
+
+  // If edit mode, show the form
+  if (editId) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-6">
+          <Link href="/dashboard/listings">
+            <Button variant="outline" size="sm">← Back to Listings</Button>
+          </Link>
+        </div>
+        <ListingForm listingId={editId} />
+      </div>
+    )
   }
 
   return (
@@ -85,6 +124,9 @@ export default function MyListingsPage() {
               <div className="absolute top-2 right-2 flex gap-2">
                 <Link href={`/listings/${listing.id}`}>
                   <Button size="sm" variant="outline">View</Button>
+                </Link>
+                <Link href={`/dashboard/listings?edit=${listing.id}`}>
+                  <Button size="sm" variant="primary">Edit</Button>
                 </Link>
                 <Button
                   size="sm"

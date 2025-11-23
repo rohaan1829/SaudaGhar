@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/app/components/ui/Button'
 import { Input } from '@/app/components/ui/Input'
 import { Card } from '@/app/components/ui/Card'
@@ -9,15 +10,18 @@ import { createClient } from '@/app/lib/supabase/client'
 import { MATERIAL_CATEGORIES, MATERIAL_CONDITIONS, LISTING_TYPES } from '@/app/lib/utils/categories'
 import { PAKISTAN_CITIES } from '@/app/lib/utils/locations'
 import { useAuth } from '@/app/hooks/useAuth'
+import type { Listing } from '@/app/types'
 
 export default function ListingForm({ listingId }: { listingId?: string }) {
   const router = useRouter()
   const supabase = createClient()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [loadingListing, setLoadingListing] = useState(false)
   const [error, setError] = useState('')
   const [images, setImages] = useState<File[]>([])
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [existingImages, setExistingImages] = useState<string[]>([]) // Store existing image URLs
   const [formData, setFormData] = useState({
     material_name: '',
     category: '',
@@ -35,6 +39,77 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
       whatsapp: false,
     },
   })
+
+  // Load existing listing data when editing
+  useEffect(() => {
+    if (listingId && user) {
+      loadListing()
+    }
+  }, [listingId, user])
+
+  const loadListing = async () => {
+    if (!listingId || !user) return
+
+    setLoadingListing(true)
+    setError('')
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('listings')
+        .select('*')
+        .eq('id', listingId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchError) {
+        console.error('Error loading listing:', fetchError)
+        setError('Failed to load listing: ' + fetchError.message)
+        setLoadingListing(false)
+        return
+      }
+
+      if (!data) {
+        setError('Listing not found')
+        setLoadingListing(false)
+        return
+      }
+
+      const listing = data as Listing
+      
+      // Populate form with existing data
+      setFormData({
+        material_name: listing.material_name || '',
+        category: listing.category || '',
+        condition: listing.condition || '',
+        quantity: listing.quantity || '',
+        price: listing.price ? listing.price.toString() : '',
+        is_exchange_only: listing.is_exchange_only || false,
+        location: listing.location || '',
+        city: listing.city || '',
+        description: listing.description || '',
+        listing_type: listing.listing_type || 'Sell',
+        contact_preferences: {
+          call: listing.contact_preferences?.call ?? false,
+          message: listing.contact_preferences?.message ?? true,
+          whatsapp: listing.contact_preferences?.whatsapp ?? false,
+        },
+      })
+
+      // Set existing images
+      if (listing.images && Array.isArray(listing.images) && listing.images.length > 0) {
+        const validImages = listing.images.filter(img => img && typeof img === 'string' && img.trim() !== '')
+        setExistingImages(validImages)
+        setImagePreviews(validImages) // Show existing images as previews
+      }
+
+      console.log('Listing loaded successfully:', listing)
+    } catch (err: any) {
+      console.error('Exception loading listing:', err)
+      setError('Failed to load listing: ' + err.message)
+    } finally {
+      setLoadingListing(false)
+    }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
@@ -68,15 +143,17 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
     console.log('handleImageChange called with files:', files.length)
     console.log('File details:', files.map(f => ({ name: f.name, size: f.size, type: f.type })))
     
-    // Limit to 5 images
-    const limitedFiles = files.slice(0, 5)
+    // Limit total images to 5 (existing + new)
+    const availableSlots = 5 - existingImages.length
+    const limitedFiles = files.slice(0, Math.max(0, availableSlots))
     
     setImages(limitedFiles)
     
-    const previews = limitedFiles.map(file => URL.createObjectURL(file))
-    setImagePreviews(previews)
+    // Combine existing image previews with new file previews
+    const newPreviews = limitedFiles.map(file => URL.createObjectURL(file))
+    setImagePreviews([...existingImages, ...newPreviews])
     
-    console.log('Images state updated, count:', limitedFiles.length)
+    console.log('Images state updated - new files:', limitedFiles.length, 'existing:', existingImages.length)
   }
 
   const uploadImages = async (userId: string): Promise<string[]> => {
@@ -161,12 +238,37 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
       console.log('Images state before upload:', images)
       console.log('Images length:', images.length)
       console.log('Image previews:', imagePreviews)
+      console.log('Existing images:', existingImages)
       
-      // Upload images
-      const imageUrls = await uploadImages(user.id)
+      // Handle images: upload new ones if any, otherwise keep existing
+      let imageUrls: string[] = []
       
-      console.log('Uploaded image URLs:', imageUrls)
-      console.log('Number of URLs uploaded:', imageUrls.length)
+      if (images && images.length > 0) {
+        // Upload new images
+        console.log('Starting image upload, files:', images.length)
+        imageUrls = await uploadImages(user.id)
+        console.log('Uploaded image URLs:', imageUrls)
+        
+        if (imageUrls.length === 0 && images.length > 0) {
+          setError('Failed to upload images. Please check your storage bucket configuration and ensure the "listing-images" bucket exists and is public.')
+          setLoading(false)
+          return
+        }
+        
+        // Combine new images with existing ones (if editing)
+        if (listingId && existingImages.length > 0) {
+          imageUrls = [...existingImages, ...imageUrls]
+          console.log('Combined existing and new images:', imageUrls.length)
+        }
+      } else {
+        // No new images uploaded - keep existing ones (if editing) or empty array
+        if (listingId && existingImages.length > 0) {
+          imageUrls = existingImages
+          console.log('No new images, keeping existing:', existingImages.length)
+        } else {
+          console.log('No images to upload')
+        }
+      }
 
       const listingData = {
         user_id: user.id,
@@ -179,7 +281,7 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
         location: formData.location,
         city: formData.city,
         description: formData.description,
-        images: imageUrls.length > 0 ? imageUrls : [], // Ensure it's always an array
+        images: imageUrls, // Always an array, even if empty
         contact_preferences: formData.contact_preferences,
         listing_type: formData.listing_type,
         status: 'active',
@@ -223,6 +325,17 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading state while fetching listing data
+  if (loadingListing) {
+    return (
+      <Card>
+        <div className="text-center py-12">
+          <p className="text-gray-600">Loading listing data...</p>
+        </div>
+      </Card>
+    )
   }
 
   return (
@@ -416,9 +529,24 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
                   <button
                     type="button"
                     onClick={() => {
-                      const newImages = images.filter((_, i) => i !== idx)
+                      // Check if it's an existing image (URL) or new file
+                      const preview = imagePreviews[idx]
+                      const isExistingImage = typeof preview === 'string' && (preview.startsWith('http') || preview.startsWith('blob:'))
+                      
+                      if (isExistingImage && preview.startsWith('http')) {
+                        // Remove from existing images
+                        setExistingImages(prev => prev.filter(url => url !== preview))
+                      } else {
+                        // Remove from new images (Files)
+                        const fileIndex = idx - existingImages.length
+                        if (fileIndex >= 0) {
+                          const newImages = images.filter((_, i) => i !== fileIndex)
+                          setImages(newImages)
+                        }
+                      }
+                      
+                      // Remove from previews
                       const newPreviews = imagePreviews.filter((_, i) => i !== idx)
-                      setImages(newImages)
                       setImagePreviews(newPreviews)
                     }}
                     className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
@@ -475,9 +603,18 @@ export default function ListingForm({ listingId }: { listingId?: string }) {
           </div>
         )}
 
-        <Button type="submit" variant="primary" className="w-full" isLoading={loading}>
-          {listingId ? 'Update Listing' : 'Create Listing'}
-        </Button>
+        <div className="flex gap-3">
+          {listingId && (
+            <Link href="/dashboard/listings" className="flex-1">
+              <Button type="button" variant="outline" className="w-full">
+                Cancel
+              </Button>
+            </Link>
+          )}
+          <Button type="submit" variant="primary" className={listingId ? 'flex-1' : 'w-full'} isLoading={loading}>
+            {listingId ? 'Update Listing' : 'Create Listing'}
+          </Button>
+        </div>
       </form>
     </Card>
   )

@@ -278,12 +278,30 @@ export default function ListingDetailPage() {
               </Button>
               <Button
                 onClick={async () => {
-                  if (confirm('Are you sure you want to delete this listing?')) {
-                    await supabase
+                  if (!user) return
+                  
+                  if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
+                    return
+                  }
+
+                  try {
+                    const { error } = await supabase
                       .from('listings')
                       .update({ status: 'inactive' })
                       .eq('id', listing.id)
-                    router.push('/dashboard/listings')
+                      .eq('user_id', user.id)
+
+                    if (error) {
+                      console.error('Error deleting listing:', error)
+                      alert('Failed to delete listing: ' + error.message)
+                    } else {
+                      console.log('Listing deleted successfully')
+                      router.push('/dashboard/listings')
+                      router.refresh()
+                    }
+                  } catch (err: any) {
+                    console.error('Exception deleting listing:', err)
+                    alert('Failed to delete listing: ' + err.message)
                   }
                 }}
                 variant="danger"
