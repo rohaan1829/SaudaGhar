@@ -2,12 +2,15 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Card } from '@/app/components/ui/Card'
+import { Button } from '@/app/components/ui/Button'
 import type { Listing } from '@/app/types'
 import { formatDistanceToNow } from 'date-fns'
 import { getCategoryIcon } from '@/app/lib/utils/categories'
 import { memo, useMemo } from 'react'
 import { motion } from 'framer-motion'
+import { useAuth } from '@/app/hooks/useAuth'
 
 interface ListingCardProps {
   listing: Listing
@@ -39,6 +42,9 @@ const getConditionBadge = (condition: string) => {
 }
 
 export const ListingCard = memo(function ListingCard({ listing }: ListingCardProps) {
+  const router = useRouter()
+  const { user } = useAuth()
+  
   // Memoize computed values to prevent recalculation on every render
   const listingTypeColor = useMemo(() => getListingTypeColor(listing.listing_type), [listing.listing_type])
   const conditionColor = useMemo(() => getConditionBadge(listing.condition), [listing.condition])
@@ -49,6 +55,14 @@ export const ListingCard = memo(function ListingCard({ listing }: ListingCardPro
   }, [listing.is_exchange_only, listing.price])
   const timeAgo = useMemo(() => formatDistanceToNow(new Date(listing.created_at), { addSuffix: true }), [listing.created_at])
   const CategoryIcon = useMemo(() => getCategoryIcon(listing.category), [listing.category])
+  
+  const isOwner = user?.id === listing.user_id
+  
+  const handleMessageClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    router.push(`/listings/${listing.id}#message`)
+  }
   
   // Normalize images array - handle null, undefined, or string
   const imagesArray = useMemo(() => {
@@ -160,8 +174,20 @@ export const ListingCard = memo(function ListingCard({ listing }: ListingCardPro
                 </span>
               )}
             </div>
-            <div className="text-xs text-gray-400">
-              {timeAgo}
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs text-gray-400">
+                {timeAgo}
+              </div>
+              {user && !isOwner && (
+                <Button
+                  onClick={handleMessageClick}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                >
+                  💬 Message
+                </Button>
+              )}
             </div>
           </div>
         </div>

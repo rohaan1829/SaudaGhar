@@ -27,6 +27,19 @@ export default function ListingDetailPage() {
     fetchListing()
   }, [params.id])
 
+  // Scroll to message form if hash is #message
+  useEffect(() => {
+    if (window.location.hash === '#message' && !loading && listing) {
+      setTimeout(() => {
+        const messageElement = document.getElementById('message-form')
+        if (messageElement) {
+          messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          messageElement.focus()
+        }
+      }, 300)
+    }
+  }, [loading, listing])
+
   const fetchListing = async () => {
     // Parallel fetch: get listing and seller profile simultaneously
     const [listingResult, profileResult] = await Promise.all([
@@ -232,27 +245,26 @@ export default function ListingDetailPage() {
                 </div>
               )}
 
-              {listing.contact_preferences?.message && (
-                <div className="mb-4">
-                  <textarea
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Type your message..."
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 placeholder-gray-400"
-                    style={{ backgroundColor: '#ffffff', color: '#111827' }}
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    variant="primary"
-                    className="w-full mt-2"
-                    isLoading={sending}
-                    disabled={!message.trim()}
-                  >
-                    Send Message
-                  </Button>
-                </div>
-              )}
+              <div id="message-form" className="mb-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">Send a Message</h4>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Type your message about this listing..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 placeholder-gray-400"
+                  style={{ backgroundColor: '#ffffff', color: '#111827' }}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  variant="primary"
+                  className="w-full mt-2"
+                  isLoading={sending}
+                  disabled={!message.trim()}
+                >
+                  Send Message
+                </Button>
+              </div>
 
               {listing.contact_preferences?.whatsapp && seller && (
                 <a
