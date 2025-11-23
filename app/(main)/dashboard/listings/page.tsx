@@ -1,0 +1,98 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Button } from '@/app/components/ui/Button'
+import { Card } from '@/app/components/ui/Card'
+import { createClient } from '@/app/lib/supabase/client'
+import { useAuth } from '@/app/hooks/useAuth'
+import { ListingCard } from '@/app/components/listings/ListingCard'
+import type { Listing } from '@/app/types'
+import { ListingsSkeleton } from '@/app/components/dashboard/ListingsSkeleton'
+
+export default function MyListingsPage() {
+  const { user } = useAuth()
+  const supabase = createClient()
+  const [listings, setListings] = useState<Listing[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (user) {
+      fetchListings()
+    }
+  }, [user])
+
+  const fetchListings = async () => {
+    if (!user) return
+
+    const { data, error } = await supabase
+      .from('listings')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      setListings(data)
+    }
+    setLoading(false)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this listing?')) return
+
+    const { error } = await supabase
+      .from('listings')
+      .update({ status: 'inactive' })
+      .eq('id', id)
+      .eq('user_id', user?.id)
+
+    if (!error) {
+      fetchListings()
+    }
+  }
+
+  if (loading) {
+    return <ListingsSkeleton />
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">My Listings</h1>
+        <Link href="/listings/create">
+          <Button variant="primary">+ Create New Listing</Button>
+        </Link>
+      </div>
+
+      {listings.length === 0 ? (
+        <Card>
+          <p className="text-gray-500 mb-4">You haven't created any listings yet.</p>
+          <Link href="/listings/create">
+            <Button variant="primary">Create Your First Listing</Button>
+          </Link>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {listings.map((listing) => (
+            <div key={listing.id} className="relative">
+              <ListingCard listing={listing} />
+              <div className="absolute top-2 right-2 flex gap-2">
+                <Link href={`/listings/${listing.id}`}>
+                  <Button size="sm" variant="outline">View</Button>
+                </Link>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => handleDelete(listing.id)}
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+

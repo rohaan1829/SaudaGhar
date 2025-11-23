@@ -1,0 +1,352 @@
+'use client'
+
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import Link from 'next/link'
+import { Button } from '@/app/components/ui/Button'
+import { Input } from '@/app/components/ui/Input'
+import { Card } from '@/app/components/ui/Card'
+import { createClient } from '@/app/lib/supabase/client'
+import { useLanguage } from '@/app/hooks/useLanguage'
+import { useAuth } from '@/app/hooks/useAuth'
+import { Header } from '@/app/components/layout/Header'
+import { ListingCard } from '@/app/components/listings/ListingCard'
+import type { Listing } from '@/app/types'
+import { MATERIAL_CATEGORIES, getCategoryIcon } from '@/app/lib/utils/categories'
+import { formatDistanceToNow } from 'date-fns'
+
+// Memoize supabase client outside component
+const supabase = createClient()
+
+export default function HomePage() {
+  const { t, language, changeLanguage } = useLanguage()
+  const { user } = useAuth()
+  const [location, setLocation] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [listings, setListings] = useState<Listing[]>([])
+  const [featuredListings, setFeaturedListings] = useState<Listing[]>([])
+  const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
+  const [stats, setStats] = useState({ totalListings: 0, totalViews: 0, activeUsers: 0 })
+  const [loading, setLoading] = useState(false)
+
+  // Memoize fetch functions to prevent recreation on every render
+  const fetchListings = useCallback(async () => {
+    if (!location && !searchQuery) {
+      // Fetch recent listings if no filters
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('listings')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(12)
+      
+      if (!error && data) {
+        setListings(data)
+      }
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    let query = supabase
+      .from('listings')
+      .select('*')
+      .eq('status', 'active')
+
+    if (location) {
+      query = query.or(`city.ilike.%${location}%,location.ilike.%${location}%`)
+    }
+
+    if (searchQuery) {
+      query = query.or(`material_name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`)
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false }).limit(20)
+
+    if (!error && data) {
+      setListings(data)
+    }
+    setLoading(false)
+  }, [location, searchQuery])
+
+  const fetchFeaturedListings = useCallback(async () => {
+    const { data } = await supabase
+      .from('listings')
+      .select('*')
+      .eq('status', 'active')
+      .order('views_count', { ascending: false })
+      .limit(6)
+    
+    if (data) {
+      setFeaturedListings(data)
+    }
+  }, [])
+
+  const fetchCategoryCounts = useCallback(async () => {
+    // Optimized: Only fetch categories, not all listing data
+    const { data } = await supabase
+      .from('listings')
+      .select('category')
+      .eq('status', 'active')
+    
+    if (data) {
+      // Fast counting in one pass
+      const counts: Record<string, number> = {}
+      data.forEach(listing => {
+        counts[listing.category] = (counts[listing.category] || 0) + 1
+      })
+      setCategoryCounts(counts)
+    }
+  }, [])
+
+  const fetchStats = useCallback(async () => {
+    // Optimized: Parallel queries with minimal data fetching
+    const [listingsResult, usersResult, viewsResult] = await Promise.all([
+      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      // Only fetch views_count column for faster query
+      supabase.from('listings').select('views_count').eq('status', 'active'),
+    ])
+
+    // Fast calculation in memory
+    const totalViews = viewsResult.data?.reduce((sum: number, listing: any) => sum + (listing?.views_count || 0), 0) || 0
+
+    setStats({
+      totalListings: listingsResult.count || 0,
+      totalViews,
+      activeUsers: usersResult.count || 0,
+    })
+  }, [])
+
+  useEffect(() => {
+    // Parallelize all fetches for faster loading
+    Promise.all([
+      fetchListings(),
+      fetchFeaturedListings(),
+      fetchCategoryCounts(),
+      fetchStats()
+    ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty deps - only run on mount
+
+  const handleSearch = useCallback(() => {
+    fetchListings()
+  }, [fetchListings])
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <Header />
+
+      {/* Hero Section with Gradient and Search */}
+      <section className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 text-white py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h1 className="text-5xl md:text-6xl font-bold mb-6">
+              {language === 'en' 
+                ? 'Industrial & Agricultural Symbiosis Platform' 
+                : 'صنعتی و زرعی ہم آہنگی پلیٹ فارم'}
+            </h1>
+            <p className="text-xl md:text-2xl text-primary-100 mb-10 max-w-3xl mx-auto">
+              {language === 'en' 
+                ? 'Connect industries and agriculture to reduce waste, promote sustainability, and create a circular economy'
+                : 'صنعتوں اور زراعت کو جوڑیں تاکہ فضلہ کم ہو، پائیداری کو فروغ ملے اور ایک سرکلر معیشت بنائی جائے'}
+            </p>
+          </div>
+
+          {/* Search Form in Hero Section */}
+          <div className="max-w-4xl mx-auto">
+            <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+              <div className="p-6 md:p-8">
+                <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">
+                  {language === 'en' ? 'Search Listings' : 'فہرستیں تلاش کریں'}
+                </h2>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label={t('home.location')}
+                      placeholder={language === 'en' ? 'Enter city or location' : 'شہر یا مقام درج کریں'}
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                    />
+                    <Input
+                      label={t('home.search')}
+                      placeholder={language === 'en' ? 'Search by material, category, or description' : 'مواد، قسم، یا تفصیل سے تلاش کریں'}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                    />
+                  </div>
+                  <div className="flex justify-center">
+                    <Button onClick={handleSearch} isLoading={loading} size="lg" className="min-w-[200px]">
+                      {language === 'en' ? 'Search' : 'تلاش کریں'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Statistics Section */}
+      <section className="bg-white border-b border-gray-200 py-8 -mt-8 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="text-4xl font-bold text-primary-600 mb-2">{stats.totalListings.toLocaleString()}+</div>
+              <div className="text-gray-600">{language === 'en' ? 'Active Listings' : 'فعال فہرستیں'}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-primary-600 mb-2">{stats.totalViews.toLocaleString()}+</div>
+              <div className="text-gray-600">{language === 'en' ? 'Total Views' : 'کل مناظر'}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-primary-600 mb-2">{stats.activeUsers.toLocaleString()}+</div>
+              <div className="text-gray-600">{language === 'en' ? 'Active Users' : 'فعال صارفین'}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Categories Section */}
+      <section className="bg-white py-12 border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold text-center mb-8 text-gray-900">
+            {language === 'en' ? 'Browse by Category' : 'زمرہ کے لحاظ سے براؤز کریں'}
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {MATERIAL_CATEGORIES.slice(0, 12).map((category) => {
+              const IconComponent = getCategoryIcon(category)
+              return (
+                <Link
+                  key={category}
+                  href={`/search?category=${encodeURIComponent(category)}`}
+                  className="group"
+                >
+                  <Card className="p-4 text-center hover:shadow-lg transition-all hover:border-primary-500 cursor-pointer h-full">
+                    <div className="flex justify-center mb-2">
+                      <IconComponent className="w-8 h-8 text-primary-600 group-hover:text-primary-700 transition-colors" />
+                    </div>
+                    <div className="font-semibold text-sm mb-1">{category}</div>
+                    {categoryCounts[category] && (
+                      <div className="text-xs text-gray-500">
+                        {categoryCounts[category]} {language === 'en' ? 'listings' : 'فہرستیں'}
+                      </div>
+                    )}
+                  </Card>
+                </Link>
+              )
+            })}
+          </div>
+          <div className="text-center mt-8">
+            <Link href="/search">
+              <Button variant="outline" size="lg">
+                {language === 'en' ? 'View All Categories' : 'تمام زمرے دیکھیں'}
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Featured Listings Section */}
+      {featuredListings.length > 0 && (
+        <section className="bg-gray-50 py-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900">
+                {language === 'en' ? 'Featured Listings' : 'نمایاں فہرستیں'}
+              </h2>
+              <Link href="/search">
+                <Button variant="outline">
+                  {language === 'en' ? 'View All' : 'تمام دیکھیں'}
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredListings.map((listing) => (
+                <ListingCard key={listing.id} listing={listing} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Recent Listings Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="flex justify-between items-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-900">
+            {location || searchQuery 
+              ? (language === 'en' ? 'Search Results' : 'تلاش کے نتائج')
+              : (language === 'en' ? 'Recent Listings' : 'حالیہ فہرستیں')}
+          </h2>
+          {!location && !searchQuery && (
+            <Link href="/search">
+              <Button variant="outline">
+                {language === 'en' ? 'View All' : 'تمام دیکھیں'}
+              </Button>
+            </Link>
+          )}
+        </div>
+        
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            <p className="mt-4 text-gray-500">{language === 'en' ? 'Loading listings...' : 'فہرستیں لوڈ ہو رہی ہیں...'}</p>
+          </div>
+        ) : listings.length === 0 ? (
+          <Card className="p-12 text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-xl font-semibold mb-2 text-gray-900">
+              {language === 'en' ? 'No listings found' : 'کوئی فہرست نہیں ملی'}
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {language === 'en' 
+                ? 'Try adjusting your search criteria or browse all listings'
+                : 'اپنے تلاش کے معیارات کو ایڈجسٹ کریں یا تمام فہرستیں براؤز کریں'}
+            </p>
+            <Link href="/search">
+              <Button variant="primary">
+                {language === 'en' ? 'Browse All Listings' : 'تمام فہرستیں براؤز کریں'}
+              </Button>
+            </Link>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {listings.map((listing) => (
+              <ListingCard key={listing.id} listing={listing} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Call to Action Section */}
+      {!user && (
+        <section className="bg-primary-600 text-white py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              {language === 'en' ? 'Ready to Get Started?' : 'شروع کرنے کے لیے تیار ہیں؟'}
+            </h2>
+            <p className="text-xl text-primary-100 mb-8 max-w-2xl mx-auto">
+              {language === 'en' 
+                ? 'Join thousands of businesses and farmers creating a sustainable future'
+                : 'ہزاروں کاروباروں اور کسانوں میں شامل ہوں جو پائیدار مستقبل بنا رہے ہیں'}
+            </p>
+            <div className="flex justify-center gap-4">
+              <Link href="/register">
+                <Button size="lg" variant="secondary" className="shadow-lg">
+                  {language === 'en' ? 'Create Account' : 'اکاؤنٹ بنائیں'}
+                </Button>
+              </Link>
+              <Link href="/login">
+                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-primary-600">
+                  {language === 'en' ? 'Sign In' : 'سائن ان کریں'}
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
