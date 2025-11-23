@@ -1,3 +1,5 @@
+'use client'
+
 import { Card } from '@/app/components/ui/Card'
 
 const GUIDELINES = [

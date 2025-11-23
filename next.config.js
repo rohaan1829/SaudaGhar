@@ -18,9 +18,9 @@ const nextConfig = {
   // Compress responses
   compress: true,
   // Experimental features for better performance
-  experimental: {
-    optimizeCss: true,
-  },
+  // experimental: {
+  //   optimizeCss: true, // Disabled due to critters dependency issue
+  // },
 }
 
 module.exports = nextConfig
