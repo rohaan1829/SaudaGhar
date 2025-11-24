@@ -94,28 +94,72 @@ export default function RegistrationForm() {
         )
       }
 
-      // 4. Create profile - wait a bit to ensure auth context is set
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: authData.user.id,
-          full_name: formData.full_name,
-          cnic_number: formData.cnic_number,
-          business_name: formData.business_name,
-          business_type: formData.business_type,
-          business_address: formData.business_address,
-          phone: formData.phone,
-          email: formData.email,
-          ntn_number: formData.ntn_number || null,
-          cnic_photo_url: cnicPhotoUrl,
-          business_license_url: licenseUrl,
-        })
+      // 4. Try to create profile
+      // If email confirmation is required, this might fail due to RLS - that's okay
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            full_name: formData.full_name,
+            cnic_number: formData.cnic_number,
+            business_name: formData.business_name,
+            business_type: formData.business_type,
+            business_address: formData.business_address,
+            phone: formData.phone,
+            email: formData.email,
+            ntn_number: formData.ntn_number || null,
+            cnic_photo_url: cnicPhotoUrl,
+            business_license_url: licenseUrl,
+          })
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError)
-        throw profileError
+        if (profileError) {
+          // If profile already exists (from trigger), try to update it
+          if (profileError.code === '23505' || profileError.message.includes('duplicate') || profileError.message.includes('unique')) {
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({
+                full_name: formData.full_name,
+                cnic_number: formData.cnic_number,
+                business_name: formData.business_name,
+                business_type: formData.business_type,
+                business_address: formData.business_address,
+                phone: formData.phone,
+                email: formData.email,
+                ntn_number: formData.ntn_number || null,
+                cnic_photo_url: cnicPhotoUrl,
+                business_license_url: licenseUrl,
+              })
+              .eq('id', authData.user.id)
+
+            if (updateError) {
+              // If update also fails and email confirmation is required, that's okay
+              if (requiresEmailConfirmation && (updateError.message.includes('row-level security') || updateError.message.includes('RLS'))) {
+                // Profile will be created after email confirmation
+              } else {
+                console.error('Profile update error:', updateError)
+                throw updateError
+              }
+            }
+          } else if (requiresEmailConfirmation && (profileError.message.includes('row-level security') || profileError.message.includes('RLS'))) {
+            // RLS error during signup with email confirmation - this is expected
+            // Profile will be created after email confirmation via trigger or on first login
+            console.log('Profile creation skipped due to email confirmation requirement')
+          } else {
+            console.error('Profile creation error:', profileError)
+            throw profileError
+          }
+        }
+      } catch (profileErr: any) {
+        // If it's an RLS error and email confirmation is required, that's expected
+        if (requiresEmailConfirmation && (profileErr.message?.includes('row-level security') || profileErr.message?.includes('RLS'))) {
+          // This is expected - profile will be created after email confirmation
+          console.log('Profile creation will happen after email confirmation')
+        } else {
+          throw profileErr
+        }
       }
 
       // 5. Handle success - show confirmation message or redirect
@@ -267,13 +311,13 @@ export default function RegistrationForm() {
           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
             <p className="font-semibold mb-1">✓ Registration Successful!</p>
             <p className="text-sm">
-              A confirmation link has been sent to <strong>{formData.email}</strong>
+              A verification link has been sent to <strong>{formData.email}</strong>
             </p>
             <p className="text-sm mt-2">
-              Please check your email and click the confirmation link to activate your account.
+              Please check your email and click the verification link to activate your account.
             </p>
             <p className="text-sm mt-2">
-              After confirming, you can <Link href="/login" className="underline font-semibold">login here</Link>.
+              After verifying your email, you can <Link href="/login" className="underline font-semibold">login here</Link>.
             </p>
           </div>
         )}
